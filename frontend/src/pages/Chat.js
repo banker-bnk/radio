@@ -200,7 +200,7 @@ function Chat() {
                   { latitude: data.message.lat, longitude: data.message.lon }
                 );
                 console.log('Distance to message:', distance, 'meters');
-                if (distance <= 1000) {
+                if (distance <= CONFIG.CHAT_RADIUS) {
                   setFilteredMessages(prev => {
                     console.log('Previous filteredMessages count:', prev.length);
                     const newFiltered = [...prev, data.message];
