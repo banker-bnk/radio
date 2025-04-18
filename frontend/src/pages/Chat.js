@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { getDistance } from 'geolib';
 import 'leaflet/dist/leaflet.css';
 import { CONFIG } from '../config';
+
+// Agregar este componente antes del Chat
+function MapCenter({ position }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(position, map.getZoom());
+  }, [position, map]);
+  return null;
+}
 
 function Chat() {
   const location = useLocation();
@@ -25,9 +34,16 @@ function Chat() {
   const [filteredMessages, setFilteredMessages] = useState([]);
   const [isFirstLocationSent, setIsFirstLocationSent] = useState(false);
   const navigate = useNavigate();
+  const [selectedLocation, setSelectedLocation] = useState('gps');
 
   // Coordenadas por defecto: Paloma 715, Córdoba, Argentina
-  const DEFAULT_COORDINATES = [-31.4135, -64.1810];
+  const DEFAULT_COORDINATES = [-31.3740, -64.2852]; // Kiosko 10
+  const LOCATIONS = [
+    { name: 'Actual (GPS)', value: 'gps', coords: null },
+    { name: 'Rafael Nuñez 4023', value: 'rafael', coords: [-31.3718834, -64.2331584] },
+    { name: 'Kiosko 10', value: 'kiosko', coords: [-31.3684186, -64.238123] },
+    { name: 'Q2', value: 'q2', coords: [-31.270729, -64.4587293] }
+  ];
 
   // Actualizar la ref cuando cambia position
   useEffect(() => {
@@ -38,46 +54,47 @@ function Chat() {
   useEffect(() => {
     console.log('Setting up geolocation monitoring...');
     
-    // Get initial position
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        console.log('Got initial position:', position.coords);
-        setPosition([position.coords.latitude, position.coords.longitude]);
-        setLocationError(null);
-      },
-      (error) => {
-        console.error('Error getting initial location:', error);
-        console.log('Using default coordinates for Paloma 715, Córdoba');
-        setPosition(DEFAULT_COORDINATES);
-        setLocationError('Usando ubicación por defecto: Paloma 715, Córdoba');
-      }
-    );
+    if (selectedLocation === 'gps') {
+      // Get initial position
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          console.log('Got initial position:', position.coords);
+          setPosition([position.coords.latitude, position.coords.longitude]);
+          setLocationError(null);
+        },
+        (error) => {
+          console.error('Error getting initial location:', error);
+          setPosition(DEFAULT_COORDINATES);
+          setLocationError('Error al obtener ubicación GPS. Usando ubicación por defecto.');
+        }
+      );
 
-    // Watch position changes
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        console.log('Position changed:', position.coords);
-        setPosition([position.coords.latitude, position.coords.longitude]);
-        setLocationError(null);
-      },
-      (error) => {
-        console.error('Error watching location:', error);
-        console.log('Using default coordinates for Paloma 715, Córdoba');
-        setPosition(DEFAULT_COORDINATES);
-        setLocationError('Usando ubicación por defecto: Paloma 715, Córdoba');
-      },
-      { 
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
-      }
-    );
+      // Watch position changes
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          console.log('Position changed:', position.coords);
+          setPosition([position.coords.latitude, position.coords.longitude]);
+          setLocationError(null);
+        },
+        (error) => {
+          console.error('Error watching location:', error);
+          setPosition(DEFAULT_COORDINATES);
+          setLocationError('Error al obtener ubicación GPS. Usando ubicación por defecto.');
+        }
+      );
 
-    return () => {
-      console.log('Cleaning up geolocation monitoring');
-      navigator.geolocation.clearWatch(watchId);
-    };
-  }, []);
+      return () => {
+        console.log('Cleaning up geolocation monitoring');
+        navigator.geolocation.clearWatch(watchId);
+      };
+    } else {
+      const location = LOCATIONS.find(loc => loc.value === selectedLocation);
+      if (location && location.coords) {
+        setPosition(location.coords);
+        setLocationError(null);
+      }
+    }
+  }, [selectedLocation]);
 
   const connectWebSocket = useCallback(() => {
     console.log('Attempting to create WebSocket connection...');
@@ -732,6 +749,7 @@ function Chat() {
               zoom={15}
               style={{ height: '100%', width: '100%' }}
             >
+              <MapCenter position={position} />
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -801,6 +819,33 @@ function Chat() {
             </MapContainer>
           </div>
         )}
+      </div>
+
+      {/* Agregar el selector de ubicación antes del chat */}
+      <div style={{
+        padding: '10px',
+        backgroundColor: '#111b21',
+        borderBottom: '1px solid #2a3942',
+      }}>
+        <select 
+          value={selectedLocation}
+          onChange={(e) => setSelectedLocation(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '8px',
+            borderRadius: '8px',
+            backgroundColor: '#2a3942',
+            color: '#fff',
+            border: 'none',
+            fontSize: '14px',
+          }}
+        >
+          {LOCATIONS.map(location => (
+            <option key={location.value} value={location.value}>
+              {location.name}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );
